@@ -35,7 +35,6 @@ func constructEthereumSignature(pubKey *ecdsa.PublicKey, hash, r, s []byte) ([]b
 		signature[64] = byte(i)
 		recoveredPub, err := crypto.Ecrecover(hash, signature)
 		if err == nil && bytes.Equal(recoveredPub, expectedPubKeyBytes) {
-			signature[64] += 27
 			return signature, nil
 		}
 	}
