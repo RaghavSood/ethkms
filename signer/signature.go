@@ -4,6 +4,8 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 
+	"bytes"
+
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
@@ -21,20 +23,19 @@ func constructEthereumSignature(pubKey *ecdsa.PublicKey, hash, r, s []byte) ([]b
 		s = sBigInt.Bytes()
 	}
 
-	// Construct signature with recovery ID
-	pubKeyBytes := secp256k1.S256().Marshal(pubKey.X, pubKey.Y)
+	// Construct base signature without recovery ID
 	signature := make([]byte, 65)
-	copy(signature[0:32], padTo32(r))
-	copy(signature[32:64], padTo32(s))
+	copy(signature[0:32], normalizeSignatureLength(r))
+	copy(signature[32:64], normalizeSignatureLength(s))
 
-	// Try recovery IDs 0 and 1
-	for v := 0; v < 2; v++ {
-		signature[64] = byte(v)
+	// Get the expected public key bytes for comparison
+	expectedPubKeyBytes := secp256k1.S256().Marshal(pubKey.X, pubKey.Y)
+
+	for i := 0; i < 2; i++ {
+		signature[64] = byte(i)
 		recoveredPub, err := crypto.Ecrecover(hash, signature)
-		if err != nil {
-			continue
-		}
-		if string(recoveredPub) == string(pubKeyBytes) {
+		if err == nil && bytes.Equal(recoveredPub, expectedPubKeyBytes) {
+			signature[64] += 27
 			return signature, nil
 		}
 	}
@@ -42,11 +43,13 @@ func constructEthereumSignature(pubKey *ecdsa.PublicKey, hash, r, s []byte) ([]b
 	return nil, ErrSignatureRecoveryFailed
 }
 
-func padTo32(b []byte) []byte {
-	if len(b) >= 32 {
-		return b[:32]
+func normalizeSignatureLength(sigValue []byte) []byte {
+	trimmedSigValue := bytes.TrimLeft(sigValue, "\x00")
+
+	for len(trimmedSigValue) < 32 {
+		zeroBuf := []byte{0}
+		trimmedSigValue = append(zeroBuf, trimmedSigValue...)
 	}
-	result := make([]byte, 32)
-	copy(result[32-len(b):], b)
-	return result
+
+	return trimmedSigValue
 }

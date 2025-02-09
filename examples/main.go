@@ -20,39 +20,51 @@ func main() {
 	// Load AWS config
 	awsCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to load AWS config: %v", err)
 	}
 
 	// Create KMS client
 	kmsSvc := kms.NewFromConfig(awsCfg)
 
-	// Create signer
-	ethSigner, err := signer.NewKmsSigner(ctx, kmsSvc, os.Getenv("KEY_ID"), big.NewInt(1)) // chainID 1 for mainnet
-	if err != nil {
-		log.Fatal(err)
+	keyID := os.Getenv("KEY_ID")
+	if keyID == "" {
+		log.Fatal("KEY_ID environment variable is not set")
 	}
 
-	fmt.Println(ethSigner.Address())
+	// Create signer
+	ethSigner, err := signer.NewKmsSigner(ctx, kmsSvc, keyID, big.NewInt(1)) // chainID 1 for mainnet
+	if err != nil {
+		log.Fatalf("Failed to create KMS signer: %v", err)
+	}
+
+	address := ethSigner.Address()
+	fmt.Printf("Ethereum Address: %s\n", address)
 
 	// Sign a personal message
 	message := []byte("Hello, Ethereum!")
 	hash, signature, err := ethSigner.PersonalSign(ctx, message)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to sign personal message: %v", err)
 	}
 
-	fmt.Println("Signature:", hex.EncodeToString(signature))
-	fmt.Println("Hash:", hex.EncodeToString(hash))
+	fmt.Printf("Personal Message Signature: %s\n", hex.EncodeToString(signature))
+	fmt.Printf("Personal Message Hash: %s\n", hex.EncodeToString(hash))
 
-	hash, _ = hex.DecodeString("5b001f2ad81fe86899545b51f8ecd1ca08674437d5c4748e1b70ba5dcf85ed86")
-	hash2, signature, err := ethSigner.SignHash(ctx, hash)
+	// Sign a specific hash
+	testHash, err := hex.DecodeString("5b001f2ad81fe86899545b51f8ecd1ca08674437d5c4748e1b70ba5dcf85ed86")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to decode test hash: %v", err)
 	}
 
-	fmt.Println("Signature:", hex.EncodeToString(signature))
-	fmt.Println("Hash:", hex.EncodeToString(hash))
-	fmt.Println("Hash2:", hex.EncodeToString(hash2))
+	fmt.Println("\n\n\n\n")
+	signedHash, signature, err := ethSigner.SignHash(ctx, testHash)
+	if err != nil {
+		log.Fatalf("Failed to sign hash: %v", err)
+	}
+
+	fmt.Printf("\nRaw Hash Signature: %s\n", hex.EncodeToString(signature))
+	fmt.Printf("Input Hash: %s\n", hex.EncodeToString(testHash))
+	fmt.Printf("Signed Hash: %s\n", hex.EncodeToString(signedHash))
 
 	// Use with contract (assuming you have a contract instance)
 	// opts := ethSigner.CreateTransactOpts(ctx)
